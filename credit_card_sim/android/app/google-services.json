@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "135455508661",
+    "project_id": "credit-card-sim",
+    "storage_bucket": "credit-card-sim.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:135455508661:android:f298e28d45feb533db56fc",
+        "android_client_info": {
+          "package_name": "com.example.credit_card_sim"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBo80KGoZjy2aNcn1kvQry9U1zIk35qVxM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
