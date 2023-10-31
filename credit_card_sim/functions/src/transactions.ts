@@ -26,11 +26,15 @@ export const submitNewTransaction = onRequest(async (req: any, res: any) => {
         const accountId = txnData['accountId'] = reqData.accountId;
 
         return validateTransaction(txnData).then(async (result) => {
-            if (result != null) {
+            if (result != 'success') {
                 res.json({'result': result});
             } else {
                 const accountDocRef = firestore.collection('accounts').doc(accountId);
                 const pendingCollectionRef = accountDocRef.collection('pending_transactions');
+
+                const accountDocSnapshot = await accountDocRef.get();
+                const availableCredit = accountDocSnapshot.data()!.available_credit;
+                const payableBalance = accountDocSnapshot.data()!.payable_balance;
 
                 // determine if pending or settled and add the new transaction
                 if (txnType == CODE.TXN_AUTHED || txnType == CODE.PAYMENT_INITIATED) {
@@ -44,13 +48,9 @@ export const submitNewTransaction = onRequest(async (req: any, res: any) => {
                         });
 
                         if (txnType == CODE.TXN_AUTHED) {
-                            const accountDocSnapshot = await accountDocRef.get();
-                            const available_credit = accountDocSnapshot.data()!.available_credit;
-                            t.update(accountDocRef, { available_credit: available_credit - txnAmount! });
+                            t.update(accountDocRef, { 'available_credit': availableCredit - txnAmount! });
                         } else {
-                            const accountDocSnapshot = await accountDocRef.get();
-                            const payable_balance = accountDocSnapshot.data()!.payable_balance;
-                            t.update(accountDocRef, { payable_balance: payable_balance + txnAmount! });
+                            t.update(accountDocRef, { 'payable_balance': payableBalance - txnAmount! });
                         }
                     });
                 } else {
@@ -58,6 +58,12 @@ export const submitNewTransaction = onRequest(async (req: any, res: any) => {
                     firestore.runTransaction(async (t) => {
                         // flag the pending transaction as closed
                         const pendingDocRef = pendingCollectionRef.doc(txnId)
+                        const pendingSnapshot = await pendingDocRef.get();
+                        const pendingTxn = pendingSnapshot.data()!;
+
+                        let payableBalanceChange = 0;
+                        let availableCreditChange = 0;
+
                         t.update(pendingDocRef, {'open': false});
 
                         // add the settled transaction
@@ -67,10 +73,29 @@ export const submitNewTransaction = onRequest(async (req: any, res: any) => {
                             'amount': txnAmount,
                             'time': Timestamp.now()
                         });
+
+                        // update the balances accordingly
+                        switch(txnType) {
+                            case CODE.TXN_AUTH_CLEARED:
+                                availableCreditChange = pendingTxn.amount;
+                            case CODE.TXN_SETTLED:
+                                // extra calculations because settled amount might change
+                                availableCreditChange = pendingTxn.amount - txnAmount!;
+                                payableBalanceChange = txnAmount!;
+                            case CODE.PAYMENT_CANCELED:
+                                payableBalanceChange = -1 * txnAmount!;
+                            case CODE.PAYMENT_POSTED:
+                                availableCreditChange = pendingTxn.amount
+                        }
+
+                        t.update(accountDocRef, {
+                            'available_credit': availableCredit + availableCreditChange,
+                            'payable_balance': payableBalance + payableBalanceChange,
+                        })
                     })
                 }
                 // success
-                res.json({'result': null});
+                res.json({'result': result});
             }
         })
     } catch (e) {
@@ -87,6 +112,12 @@ async function validateTransaction(txnData: { [key: string]: any }): Promise<Str
     const accountId = txnData['accountId'];
 
     const accountRef = firestore.collection('accounts').doc(accountId);
+
+    // check if we have a duplicate pending id
+    const existingTransaction = await getTransactionById(txnId, accountRef)
+    if (existingTransaction != null && !existingTransaction.open) {
+        return CODE.DUPLICATE_ID;
+    }
 
     if (
         txnType == CODE.TXN_SETTLED ||
@@ -117,7 +148,7 @@ async function validateTransaction(txnData: { [key: string]: any }): Promise<Str
     //     }
     // }
 
-    return null;
+    return CODE.SUCCESS;
 }
 
 

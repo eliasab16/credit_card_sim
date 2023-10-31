@@ -1,6 +1,8 @@
 export const NO_CORRESPONDING_TXN = 'No corresponding pending transaction is open; try a different transaction id';
 export const INSUFFICIENT_CREDIT = 'Insufficient credit';
 export const SUSPICIOUS_ACITIVTY =  'Suspicious activity';
+export const DUPLICATE_ID = 'A transaction with the same id already exists';
+export const SUCCESS = 'success';
 
 export const TXN_AUTHED = 'txn_authed';
 export const TXN_SETTLED = 'txn_settled';
