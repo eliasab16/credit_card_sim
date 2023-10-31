@@ -1,4 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:credit_card_sim/constants.dart';
+import 'package:credit_card_sim/transaction_data.dart';
+import 'package:credit_card_sim/utilities.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'dart:developer' as developer;
@@ -37,18 +40,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _amountController = TextEditingController();
   
   var _disableAmount = false;
-  dynamic _txnRequestResponse;
 
   int _availableCredit = 0;
   int _payableBalance = 0;
-  List<String> _pendingTransactions = [];
-  List<String> _settledTransactions = [];
+  List<CustomDocument> _pendingTransactions = [];
+  List<CustomDocument> _settledTransactions = [];
 
   @override
   void initState() {
     super.initState();
     fetchInitialAccountData();
     setupUpdatesStream();
+
+    final transactionDataProvider = TransactionDataProvider(widget.accountId);
+
+    transactionDataProvider.sortedPendingStream.listen((documents) {
+      setState(() {
+        _pendingTransactions = documents;
+      });
+    });
+    
+    transactionDataProvider.sortedSettledStream.listen((documents) {
+      setState(() {
+        _settledTransactions = documents;
+      });
+    });
   }
 
   void onDropdownChanged(String? value) {
@@ -79,6 +95,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  // listens on any changes on the account (new transactions, balance change, etc.)
   void setupUpdatesStream() {
     final doc = FirebaseFirestore.instance.collection('accounts').doc(widget.accountId);
 
@@ -106,14 +123,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           'accountId': widget.accountId
         }
       );
-
+      // display the response: succes or declined with description
       showPopup(txnRequestResponse.data.toString());
-
-      // setState(() {
-      //   _txnRequestResponse = txnRequestResponse.data ?? 'success';
-      // });
     } on FirebaseFunctionsException catch (error) {
-        // TODO: handle errors appropriately
+        rethrow;
     }
   }
 
@@ -147,8 +160,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
-                  ),
+                ),
+
                 const SizedBox(height: 12),
+
                 ElevatedButton(
                   onPressed: () {
                     Navigator.of(context).pop();
@@ -181,6 +196,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             fontWeight: FontWeight.bold
           ),
         ),
+
         SizedBox(
           width: 400,
           child: Card(
@@ -202,34 +218,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         return null;
                       },
                     ),
+
                     DropdownButtonFormField(
                       onChanged: onDropdownChanged,
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'txn_authed',
-                          child: Text('TXN_AUTHED'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'txn_settled',
-                          child: Text('TXN_SETTLED'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'txn_auth_cleared',
-                          child: Text('TXN_AUTH_CLEARED'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'payment_initiated',
-                          child: Text('PAYMENT_INITIATED'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'payment_posted',
-                          child: Text('PAYMENT_POSTED'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'payment_canceled',
-                          child: Text('PAYMENT_CANCELED'),
-                        ),
-                      ],
+                      items: dropdownOptions,
                       decoration: const InputDecoration(
                         labelText: 'Transaction Type:',
                       ),
@@ -240,6 +232,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         return null;
                       },
                     ),
+
                     TextFormField(
                       enabled: !_disableAmount,
                       controller: _amountController,
@@ -259,13 +252,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         return null;
                       },
                     ),
+
                     TextFormField(
                       enabled: false,
                       decoration: const InputDecoration(
                         labelText: 'Time: recorded automatically with submit', 
                       ),
                     ),
+
                     const SizedBox(height: 16),
+
                     ElevatedButton(
                       onPressed: () {
                         if (_formKey.currentState!.validate()) {
@@ -284,7 +280,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget showTransactions() {
+  Widget transactionsDashboard() {
     return Column(
     children: [
       SizedBox(
@@ -297,7 +293,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Text('Available Credit: \$$_availableCredit'),
               ),
             ),
-            Spacer(),
+
+            const Spacer(),
+
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(8.0),
@@ -307,7 +305,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
       ),
+
       const SizedBox(height: 16),
+
       const Text(
         'Pending Transactions:',
         style: TextStyle(
@@ -315,17 +315,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           fontWeight: FontWeight.bold,
         ),
       ),
+
       const SizedBox(height: 8),
-      Card(
-        child: SizedBox(
-          height: 120,
-          width: 400,
-          child: ListView(
-            children: _pendingTransactions.map((transaction) => Text(transaction)).toList(),
-          ),
-        ),
-      ),
+
+      buildTransactionsList(context, _pendingTransactions),
+
       const SizedBox(height: 16),
+
       const Text(
         'Settled Transactions:',
         style: TextStyle(
@@ -333,19 +329,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
           fontWeight: FontWeight.bold,
         ),
       ),
+
       const SizedBox(height: 8),
-      Card(
+
+      buildTransactionsList(context, _settledTransactions),
+
+      const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget buildTransactionsList(BuildContext context, List<CustomDocument> transactionsList) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
         child: SizedBox(
-          height: 120,
-          width: 400,
-          child: ListView(
-            children: _settledTransactions.map((transaction) => Text(transaction)).toList(),
+          height: 200,
+          width: 500,
+          child: ListView.builder(
+            itemCount: transactionsList.length,
+            itemBuilder: (context, index) {
+              final txnData = transactionsList[index].data;
+              final txnId = transactionsList[index].id;
+      
+              return Text(
+                formatTransactionDisplay(txnId, txnData)
+              );
+            },
           ),
         ),
       ),
-      const SizedBox(height: 16),
-    ],
-  );
+    );
   }
 
   @override
@@ -358,7 +372,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Center(
           child: Column(
             children: [
-              showTransactions(),
+              transactionsDashboard(),
               buildForm(),
             ],
           )

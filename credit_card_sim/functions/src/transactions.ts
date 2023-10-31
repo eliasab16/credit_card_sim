@@ -70,8 +70,11 @@ export const submitNewTransaction = onRequest(async (req: any, res: any) => {
                         const settledCollectionRef = accountDocRef.collection('settled_transactions');
                         t.set(settledCollectionRef.doc(txnId), {
                             'type': txnType,
-                            'amount': txnAmount,
-                            'time': Timestamp.now()
+                            // some settled transactions don't have an amount (pending amount doesn't change)
+                            'amount': txnAmount ?? pendingTxn.amount,
+                            // settled transactions are sorted based on their corresponding transaction time
+                            'time': pendingTxn.time,
+                            'time_finalized': Timestamp.now()
                         });
 
                         // update the balances accordingly
@@ -83,7 +86,7 @@ export const submitNewTransaction = onRequest(async (req: any, res: any) => {
                                 availableCreditChange = pendingTxn.amount - txnAmount!;
                                 payableBalanceChange = txnAmount!;
                             case CODE.PAYMENT_CANCELED:
-                                payableBalanceChange = -1 * txnAmount!;
+                                payableBalanceChange = pendingTxn.amount!;
                             case CODE.PAYMENT_POSTED:
                                 availableCreditChange = pendingTxn.amount
                         }
@@ -174,7 +177,6 @@ async function validateSufficientCredit(txnData: any, accountRef: DocumentRefere
         const available_credit = accountSnapshot.data()!.available_credit;
         return (available_credit >= txnAmount);
     } else {
-        // todo: what happens if not?
         return false;
     }
 }
@@ -185,11 +187,6 @@ async function validateCorrespondingTxn(txnId: string, accountRef: DocumentRefer
     
     return (result != null && result.open);
 }
-
-// a simplistic function that checks if there were other transactions with the same amount within the last X minutes
-// async function checkForFraud(txnAmount: number, accountRef: DocumentReference): Promise<boolean> {
-    
-// }
 
 // todo: this is sometimes called multiple times -> consider storing the transaction and reuse it
 async function getTransactionById(txnId: string, accountRef: DocumentReference): Promise<any> {
@@ -207,3 +204,8 @@ async function getTransactionById(txnId: string, accountRef: DocumentReference):
         throw error;
     }
 }
+
+// a simplistic function that checks if there were other transactions with the same amount within the last X minutes
+// async function checkForFraud(txnAmount: number, accountRef: DocumentReference): Promise<boolean> {
+    
+// }
