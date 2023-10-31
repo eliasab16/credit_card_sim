@@ -72,6 +72,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _transactionTypeController.text = value!;
       if (['payment_posted', 'payment_canceled', 'txn_auth_cleared'].any((type) => type == _transactionTypeController.text)) {
         _disableAmount = true;
+        _amountController.clear();
       } else {
         _disableAmount = false;
       }
@@ -249,6 +250,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             return 'Amount must be an integer.';
                           }
                         }
+
                         return null;
                       },
                     ),

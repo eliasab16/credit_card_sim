@@ -109,7 +109,7 @@ export const submitNewTransaction = onRequest(async (req: any, res: any) => {
 
 // before we submit a transaction we need to validate things like: amount, possible fraud, corresponding transaction, etc.
 // output: return error code
-async function validateTransaction(txnData: { [key: string]: any }): Promise<String | null> {
+async function validateTransaction(txnData: { [key: string]: any }): Promise<String> {
     const txnId = txnData['txnId'];
     const txnType = txnData['txnType'];
     const accountId = txnData['accountId'];
@@ -118,7 +118,8 @@ async function validateTransaction(txnData: { [key: string]: any }): Promise<Str
 
     // check if we have a duplicate pending id
     const existingTransaction = await getTransactionById(txnId, accountRef)
-    if (existingTransaction != null && !existingTransaction.open) {
+    
+    if (existingTransaction != null && (txnType == CODE.TXN_AUTHED || txnType == CODE.PAYMENT_INITIATED)) {
         return CODE.DUPLICATE_ID;
     }
 
