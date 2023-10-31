@@ -37,7 +37,10 @@ class _SplashScreenState extends State<SplashScreen> {
     accountDocument.get().then((value) => {
       Navigator
       .of(context)
-      .push(DashboardScreen.routeWithName(clientName: accountSnapshot.get('name')),
+      .push(DashboardScreen.routeWithName(
+        clientName: accountSnapshot.get('name'),
+        accountId: accountId
+        ),
       )
     });
     
@@ -61,7 +64,7 @@ class _SplashScreenState extends State<SplashScreen> {
             ),
             SizedBox(
               height: 200,
-              width: 200,
+              width: 300,
               child: Card(
                 child: Form(
                   child: Column(

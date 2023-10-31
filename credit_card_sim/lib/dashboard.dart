@@ -1,18 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'dart:developer' as developer;
+
 
 class DashboardScreen extends StatefulWidget {
-  static Route routeWithName({required String clientName}) {
+  static Route routeWithName({
+    required String clientName,
+    required String accountId,
+    }) {
     return MaterialPageRoute(
-      builder: (context) => DashboardScreen(clientName: clientName),
+      builder: (context) => DashboardScreen(
+        clientName: clientName,
+        accountId: accountId
+        ),
     );
   }
 
   const DashboardScreen({
     super.key,
-    required this.clientName  
+    required this.clientName,
+    required this.accountId,
   });
 
   final String clientName;
+  final String accountId;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -23,7 +34,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _idController = TextEditingController();
   final _transactionTypeController = TextEditingController();
   final _amountController = TextEditingController();
+  
   var _disableAmount = false;
+  dynamic _txnRequestResponse;
+
+  List<String> pendingTransactions = ['1', '2', '3', '4','5'];
+  List<String> settledTransactions = [];
 
   void onDropdownChanged(String? value) {
     setState(() {
@@ -36,11 +52,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  Future<String> submitTransaction() async {
+    dynamic txnRequestResponse;
+    developer.log('inside submit transaction');
+    try {
+      txnRequestResponse = await FirebaseFunctions.instance.httpsCallable('submitNewTransaction').call(
+        {
+          'txnId': _idController.text,
+          'txnType': _transactionTypeController.text,
+          'txnAmount': _amountController.text,
+          'accountId': widget.accountId
+        }
+      );
+      developer.log('submit a new transaction');
+
+      setState(() {
+        _txnRequestResponse = txnRequestResponse.data ?? 'success';
+      });
+  } on FirebaseFunctionsException catch (error) {
+      // TODO: handle errors appropriately
+  }
+
+    return '';
+  }
+
   Widget buildForm() {
     return Column(
       children: [
         const Text(
-          'Submit a transaction',
+          'Submit a transaction:',
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.bold
@@ -50,7 +90,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           height: 400,
           width: 400,
           child: Card(
-            margin: const EdgeInsets.all(16),
             child: Padding(
               padding: const EdgeInsets.all(8.0),
               child: Form(
@@ -132,11 +171,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         labelText: 'Time: recorded automatically with submit', 
                       ),
                     ),
+                    (_txnRequestResponse != null) ?
+                      (_txnRequestResponse == 'success') ?
+                        const Text(
+                          'Transaction went through successfully!',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Color.fromARGB(255, 117, 200, 39)
+                          )) :
+                        Text(
+                          'Declined: ${_txnRequestResponse.toString()}',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Color.fromARGB(255, 237, 106, 97)
+                          )) :
+                        const Text(''),
                     const Spacer(),
                     ElevatedButton(
                       onPressed: () {
                         if (_formKey.currentState!.validate()) {
-                          // Save the data.
+                          submitTransaction();
                         }
                       },
                       child: const Text('Submit'),
@@ -151,13 +207,66 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget showTransactions() {
+    return Column(
+    children: [
+      const SizedBox(height: 16),
+      const Text(
+        'Pending Transactions:',
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      const SizedBox(height: 8),
+      Card(
+        child: SizedBox(
+          height: 120,
+          width: 400,
+          child: ListView(
+            children: pendingTransactions.map((transaction) => Text(transaction)).toList(),
+          ),
+        ),
+      ),
+      const SizedBox(height: 16),
+      const Text(
+        'Settled Transactions:',
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      const SizedBox(height: 8),
+      Card(
+        child: SizedBox(
+          height: 120,
+          width: 400,
+          child: ListView(
+            children: settledTransactions.map((transaction) => Text(transaction)).toList(),
+          ),
+        ),
+      ),
+      const SizedBox(height: 16),
+    ],
+  );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('Welcome ${widget.clientName}'),
       ),
-      body: Center(child: buildForm()),
+      body: SingleChildScrollView(
+        child: Center(
+          child: Column(
+            children: [
+              showTransactions(),
+              buildForm(),
+            ],
+          )
+        ),
+      )
     );
   }
 }
