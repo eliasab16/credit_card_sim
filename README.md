@@ -17,7 +17,7 @@ To run it locally, you need to:
 1) Install the dependencies with `npm i`
 2) You might have to install other dependencies based on your environment
 3) Navigate to `functions` directory, and run: `npm run build; firebase emulators:start --only functions`
-4) From any `.dart` file in `/lib`, start the app with `Run > Run Without Debugging`
+4) From any `.dart` file in `/lib`, start the app with `Run > Run Without Debugging`. Make sure you choose `Chrome` as the emulator environment (in the bottom right in vscode). 
 
 This will connect the project to the Firebase Emulator cloud functions. The databse (Firestore) will be the actual one I'm hosting. If you wish to also emulate the Firestor, you can run `firebase emulators:start`, but you will have to populate the Firebase with the initial data:
 
