@@ -3,7 +3,9 @@
 ### Project stack:
 
 Flutter -> Frontend (find the code under `/lib` directory)
+
 Firebase Cloud Functions -> Backend (find the code under the `functions` directory)
+
 Firebase Firestore -> Database
 
 
